@@ -166,7 +166,7 @@ static void liq_remapping_result_destroy(liq_remapping_result *result) LIQ_NONNU
 static liq_error pngquant_quantize(histogram *hist, const liq_attr *options, const int fixed_colors_count, const f_pixel fixed_colors[], const double gamma, bool fixed_result_colors, liq_result **) LIQ_NONNULL;
 static liq_error liq_histogram_quantize_internal(liq_histogram *input_hist, liq_attr *attr, bool fixed_result_colors, liq_result **result_output) LIQ_NONNULL;
 
-LIQ_NONNULL static void liq_verbose_printf(const liq_attr *context, const char *fmt, ...)
+static void verbose_printf(struct pngquant_options *context, const char *fmt, ...)
 {
     if (context->log_callback) {
         va_list va;
@@ -174,12 +174,19 @@ LIQ_NONNULL static void liq_verbose_printf(const liq_attr *context, const char *
         int required_space = vsnprintf(NULL, 0, fmt, va)+1; // +\0
         va_end(va);
 
+#if defined(_MSC_VER)
+        char *buf = malloc(required_space);
+#else
         char buf[required_space];
+#endif
         va_start(va, fmt);
         vsnprintf(buf, required_space, fmt, va);
         va_end(va);
 
-        context->log_callback(context, buf, context->log_callback_user_info);
+        context->log_callback(context->liq, buf, context->log_callback_user_info);
+#if defined(_MSC_VER)
+        free(buf);
+#endif
     }
 }
 
@@ -210,8 +217,13 @@ LIQ_NONNULL static bool liq_remap_progress(const liq_remapping_result *quant, co
 #if USE_SSE
 inline static bool is_sse_available()
 {
-#if (defined(__x86_64__) || defined(__amd64))
+#if (defined(__x86_64__) || defined(__amd64) || defined(_WIN64))
     return true;
+#elif _MSC_VER
+    int info[4];
+    __cpuid(info, 1);
+    /* bool is implemented as a built-in type of size 1 in MSVC */
+    return info[3] & (1<<26) ? true : false;
 #else
     int a,b,c,d;
         cpuid(1, a, b, c, d);
@@ -744,7 +756,9 @@ LIQ_NONNULL static const rgba_pixel *liq_image_get_row_rgba(liq_image *img, unsi
 LIQ_NONNULL static void convert_row_to_f(liq_image *img, f_pixel *row_f_pixels, const unsigned int row, const float gamma_lut[])
 {
     assert(row_f_pixels);
+#ifndef _MSC_VER
     assert(!USE_SSE || 0 == ((uintptr_t)row_f_pixels & 15));
+#endif
 
     const rgba_pixel *const row_pixels = liq_image_get_row_rgba(img, row);
 
@@ -881,8 +895,9 @@ LIQ_EXPORT LIQ_NONNULL void liq_histogram_destroy(liq_histogram *hist)
 
 LIQ_EXPORT LIQ_NONNULL liq_result *liq_quantize_image(liq_attr *attr, liq_image *img)
 {
-    liq_result *res;
-    if (LIQ_OK != liq_image_quantize(img, attr, &res)) {
+    if (!CHECK_STRUCT_TYPE(attr, liq_attr)) { return NULL; }
+    if (!CHECK_STRUCT_TYPE(img, liq_image)) {
+        liq_log_error(attr, "invalid image pointer");
         return NULL;
     }
     return res;
@@ -1181,7 +1196,7 @@ LIQ_NONNULL static float remap_to_palette(liq_image *const input_image, unsigned
     struct nearest_map *const n = nearest_init(map);
 
     const unsigned int max_threads = omp_get_max_threads();
-    kmeans_state average_color[(KMEANS_CACHE_LINE_GAP+map->colors) * max_threads];
+    kmeans_state *average_color = malloc((KMEANS_CACHE_LINE_GAP+map->colors) * max_threads * sizeof(kmeans_state));
     kmeans_init(map, max_threads, average_color);
 
     #pragma omp parallel for if (rows*cols > 3000) \
@@ -1202,6 +1217,7 @@ LIQ_NONNULL static float remap_to_palette(liq_image *const input_image, unsigned
 
     nearest_free(n);
 
+    free(average_color);
     return remapping_error / (input_image->width * input_image->height);
 }
 
@@ -1957,12 +1973,14 @@ LIQ_EXPORT LIQ_NONNULL liq_error liq_write_remapped_image(liq_result *result, li
         return LIQ_BUFFER_TOO_SMALL;
     }
 
-    unsigned char *rows[input_image->height];
+    unsigned char **rows = malloc(input_image->height * sizeof(unsigned char *));
     unsigned char *buffer_bytes = buffer;
     for(unsigned int i=0; i < input_image->height; i++) {
         rows[i] = &buffer_bytes[input_image->width * i];
     }
-    return liq_write_remapped_image_rows(result, input_image, rows);
+    liq_error error = liq_write_remapped_image_rows(result, input_image, rows);
+    free(rows);
+    return error;
 }
 
 LIQ_EXPORT LIQ_NONNULL liq_error liq_write_remapped_image_rows(liq_result *quant, liq_image *input_image, unsigned char **row_pointers)
