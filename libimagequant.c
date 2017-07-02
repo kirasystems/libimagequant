@@ -166,7 +166,7 @@ static void liq_remapping_result_destroy(liq_remapping_result *result) LIQ_NONNU
 static liq_error pngquant_quantize(histogram *hist, const liq_attr *options, const int fixed_colors_count, const f_pixel fixed_colors[], const double gamma, bool fixed_result_colors, liq_result **) LIQ_NONNULL;
 static liq_error liq_histogram_quantize_internal(liq_histogram *input_hist, liq_attr *attr, bool fixed_result_colors, liq_result **result_output) LIQ_NONNULL;
 
-static void verbose_printf(struct pngquant_options *context, const char *fmt, ...)
+LIQ_NONNULL static void liq_verbose_printf(const liq_attr *context, const char *fmt, ...)
 {
     if (context->log_callback) {
         va_list va;
@@ -183,7 +183,7 @@ static void verbose_printf(struct pngquant_options *context, const char *fmt, ..
         vsnprintf(buf, required_space, fmt, va);
         va_end(va);
 
-        context->log_callback(context->liq, buf, context->log_callback_user_info);
+        context->log_callback(context, buf, context->log_callback_user_info);
 #if defined(_MSC_VER)
         free(buf);
 #endif
@@ -895,9 +895,8 @@ LIQ_EXPORT LIQ_NONNULL void liq_histogram_destroy(liq_histogram *hist)
 
 LIQ_EXPORT LIQ_NONNULL liq_result *liq_quantize_image(liq_attr *attr, liq_image *img)
 {
-    if (!CHECK_STRUCT_TYPE(attr, liq_attr)) { return NULL; }
-    if (!CHECK_STRUCT_TYPE(img, liq_image)) {
-        liq_log_error(attr, "invalid image pointer");
+    liq_result *res;
+    if (LIQ_OK != liq_image_quantize(img, attr, &res)) {
         return NULL;
     }
     return res;
