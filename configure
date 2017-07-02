@@ -5,6 +5,7 @@ PREFIX="/usr/local"
 VERSION=$(grep LIQ_VERSION_STRING libimagequant.h | grep -Eo "2\.[0-9.]+")
 
 DEBUG=
+QUIET=0
 SSE=auto
 OPENMP=
 EXTRA_CFLAGS=
@@ -19,7 +20,7 @@ help() {
 
 for i in "$@"; do
     case $i in
-    --help)
+    --help|-h)
         echo
         help "--prefix=<dir>                installation directory [$PREFIX]"
         help "--extra-cflags=<flags>        append to CFLAGS"
@@ -55,6 +56,12 @@ for i in "$@"; do
     --disable-sse)
         SSE=0
         ;;
+    --quiet)
+        QUIET=1
+        ;;
+    '')
+        # allows a bash quirk
+        ;;
     --with-openmp)
         OPENMP=1
         ;;
@@ -72,7 +79,7 @@ for i in "$@"; do
         EXTRA_LDFLAGS="$EXTRA_LDFLAGS ${i#*=}"
         ;;
     *)
-        echo "warning: unknown switch ${i%%=*} (see $0 --help for the list)"
+        echo "warning: unknown switch '${i%%=*}' (see $0 --help for the list)"
         ;;
     esac
 done
@@ -93,7 +100,9 @@ lflags() {
 }
 
 status() {
-    printf "%10s: %s\n" "$1" "$2"
+    if [ "$QUIET" -ne 1 ]; then
+        printf "%10s: %s\n" "$1" "$2"
+    fi
 }
 
 # Append to CFLAGS if compiler supports flag, with optional prerequisite.
@@ -110,7 +119,9 @@ error() {
     exit 1
 }
 
-echo
+if [ "$QUIET" -ne 1 ]; then
+    echo
+fi
 
 # /tmp, because mingw has problems opening /dev/null and gives false negative
 if ! echo "int main(){}" | "$CC" -xc -std=c99 -o /tmp/gcccheck - > /dev/null; then
@@ -199,7 +210,9 @@ else
     SOLIBSUFFIX=so
 fi
 
-echo
+if [ "$QUIET" -ne 1 ]; then
+    echo
+fi
 
 # As of GCC 4.5, 387 fp math is significantly slower in C99 mode without this.
 # Note: CPUs without SSE2 use 387 for doubles, even when SSE fp math is set.
