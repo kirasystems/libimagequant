@@ -102,6 +102,25 @@ impl fmt::Display for liq_error {
     }
 }
 
+impl liq_error {
+    #[inline]
+    pub fn is_ok(&self) -> bool {
+        *self == liq_error::LIQ_OK
+    }
+
+    pub fn is_err(&self) -> bool {
+        !self.is_ok()
+    }
+
+    pub fn unwrap(&self) {
+        assert!(self.is_ok(), "{}", self);
+    }
+
+    pub fn expect(&self, msg: &str) {
+        assert!(self.is_ok(), "{}", msg);
+    }
+}
+
 pub type liq_log_callback_function = Option<unsafe extern "C" fn(arg1: &liq_attr, message: *const c_char, user_info: *mut c_void)>;
 pub type liq_log_flush_callback_function = Option<unsafe extern "C" fn(arg1: &liq_attr, user_info: *mut c_void)>;
 pub type liq_progress_callback_function = Option<unsafe extern "C" fn(progress_percent: f32, user_info: *mut c_void) -> c_int>;
@@ -176,6 +195,7 @@ extern "C" {
     pub fn liq_histogram_create(attr: &liq_attr) -> *mut liq_histogram;
     pub fn liq_histogram_add_image(hist: &mut liq_histogram, attr: &liq_attr, image: &mut liq_image) -> liq_error;
     pub fn liq_histogram_add_colors(hist: &mut liq_histogram, attr: &liq_attr, entries: *const liq_histogram_entry, num_entries: c_int, gamma: f64) -> liq_error;
+    pub fn liq_histogram_add_fixed_color(hist: &mut liq_histogram, color: liq_color) -> liq_error;
     pub fn liq_histogram_destroy(hist: &mut liq_histogram);
 
     /// Performs quantization (palette generation) based on settings in `attr` (from `liq_attr_create()`) and pixels of the image.
@@ -211,7 +231,7 @@ extern "C" {
     /// It's valid to call this method before remapping, if you don't plan to remap any images or want to use same palette for multiple images.
     ///
     /// `liq_palette->count` contains number of colors (up to 256), `liq_palette->entries[n]` contains RGBA value for nth palette color.
-    pub fn liq_get_palette(result: &mut liq_result) -> &liq_palette;
+    pub fn liq_get_palette<'a>(result: &'a mut liq_result) -> &'a liq_palette;
     /// Remaps the image to palette and writes its pixels to the given buffer, 1 pixel per byte.
     ///
     /// The buffer must be large enough to fit the entire image, i.e. width×height bytes large. For safety, pass the size of the buffer as `buffer_size`.
@@ -244,8 +264,18 @@ extern "C" {
 }
 
 #[test]
-fn links() {
+fn links_and_runs() {
+    use std::ptr;
     unsafe {
         assert!(liq_version() >= 20901);
+        let attr = liq_attr_create();
+        assert!(!attr.is_null());
+        let hist = liq_histogram_create(&*attr);
+        assert!(!hist.is_null());
+        let mut res = ptr::null_mut();
+        liq_histogram_quantize(&*hist, &*attr, &mut res);
+        assert!(res.is_null());
+        liq_histogram_destroy(&mut *hist);
+        liq_attr_destroy(&mut *attr);
     }
 }
