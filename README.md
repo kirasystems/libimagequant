@@ -17,7 +17,7 @@ The [library](https://pngquant.org/lib) is currently a part of the [pngquant2 pr
 
 ## Compiling and Linking
 
-The library can be linked with ANSI C, C++, [Rust](https://github.com/pornel/libimagequant-rust) and [Java](https://github.com/ImageOptim/libimagequant/tree/master/org/pngquant) programs. It has no external dependencies.
+The library can be linked with ANSI C, C++, [C#](https://github.com/ImageOptim/libimagequant/blob/master/libimagequant.cs), [Rust](https://github.com/pornel/libimagequant-rust), [Java](https://github.com/ImageOptim/libimagequant/tree/master/org/pngquant) and [Go](https://code.ivysaur.me/go-imagequant/) programs. It has no external dependencies.
 
 To build on Unix-like systems run:
 
@@ -68,6 +68,7 @@ The basic flow is:
 Please note that libimagequant only handles raw uncompressed arrays of pixels in memory and is completely independent of any file format.
 
 <p>
+    /* See example.c for the full code! */
 
     #include "libimagequant.h"
 
@@ -101,6 +102,8 @@ There are 3 ways to create image object for quantization:
   * `liq_image_create_custom()` for RGB, ABGR, YUV and all other formats that can be converted on-the-fly to RGBA (you have to supply the conversion function).
 
 Note that "image" here means raw uncompressed pixels. If you have a compressed image file, such as PNG, you must use another library (e.g. libpng or lodepng) to decode it first.
+
+You'll find full example code in "example.c" file in the library source directory.
 
 ## Functions
 
@@ -136,7 +139,7 @@ Quality is in range `0` (worst) to `100` (best) and values are analoguous to JPE
 
 Quantization will attempt to use the lowest number of colors needed to achieve `maximum` quality. `maximum` value of `100` is the default and means conversion as good as possible.
 
-If it's not possible to convert the image with at least `minimum` quality (i.e. 256 colors is not enough to meet the minimum quality), then `liq_image_quantize()` will fail. The default minumum is `0` (proceeds regardless of quality).
+If it's not possible to convert the image with at least `minimum` quality (i.e. 256 colors is not enough to meet the minimum quality), then `liq_image_quantize()` will fail. The default minimum is `0` (proceeds regardless of quality).
 
 Quality measures how well the generated palette fits image given to `liq_image_quantize()`. If a different image is remapped with `liq_write_remapped_image()` then actual quality may be different.
 
@@ -391,6 +394,32 @@ These flags can be combined with binary *or*, i.e. `LIQ_OWN_PIXELS | LIQ_OWN_ROW
 This function must not be used if the image has been created with `liq_image_create_custom()`.
 
 Returns `LIQ_VALUE_OUT_OF_RANGE` if invalid flags are specified or the image object only takes pixels from a callback.
+
+----
+
+    liq_error liq_image_set_background(liq_image *image, liq_image *background_image);
+
+Analyze and remap this image with assumption that it will be always presented exactly on top of this background.
+
+When this image is remapped to a palette with a fully transparent color (use `liq_image_add_fixed_color()` to ensure this) pixels that are better represented by the background than the palette will be made transparent. This function can be used to improve quality of animated GIFs by setting previous animation frame as the background.
+
+This function takes full ownership of the background image, so you should **not** free the background object. It will be freed automatically together with the foreground image.
+
+Returns `LIQ_BUFFER_TOO_SMALL` if the background image has a different size than the foreground.
+
+----
+
+    liq_error liq_image_set_importance_map(liq_image *image, unsigned char map[], size_t buffer_size, liq_ownership ownership);
+
+Impotance map controls which areas of the image get more palette colors. Pixels corresponding to 0 values in the map are completely ignored. The higher the value the more weight is placed on the given pixel, giving it higher chance of influencing the final palette.
+
+The map is one byte per pixel and must have the same size as the image (width×height bytes). `buffer_size` argument is used to double-check that.
+
+If the `ownership` is `LIQ_COPY_PIXELS` then the `map` content be copied immediately (it's up to you to ensure the `map` memory is freed).
+
+If the `ownership` is `LIQ_OWN_PIXELS` then the `map` memory will be owned by the image and will be freed automatically when the image is freed. If a custom allocator has been set using `liq_attr_create_with_allocator()`, the `map` must be allocated using the same allocator.
+
+Returns `LIQ_INVALID_POINTER` if any pointer is `NULL`, `LIQ_BUFFER_TOO_SMALL` if the `buffer_size` does not match the image size, and `LIQ_UNSUPPORTED` if `ownership` isn't a valid value.
 
 ----
 
