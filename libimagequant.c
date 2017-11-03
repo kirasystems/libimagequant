@@ -1,31 +1,9 @@
 /*
-** © 2009-2016 by Kornel Lesiński.
+** © 2009-2017 by Kornel Lesiński.
+** © 1989, 1991 by Jef Poskanzer.
+** © 1997, 2000, 2002 by Greg Roelofs; based on an idea by Stefan Schneider.
 **
-** This file is part of libimagequant.
-**
-** libimagequant is free software: you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation, either version 3 of the License, or
-** (at your option) any later version.
-**
-** libimagequant is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
-**
-** You should have received a copy of the GNU General Public License
-** along with libimagequant. If not, see <http://www.gnu.org/licenses/>.
-*/
-/* Copyright (C) 1989, 1991 by Jef Poskanzer.
-** Copyright (C) 1997, 2000, 2002 by Greg Roelofs; based on an idea by
-**                                Stefan Schneider.
-**
-** Permission to use, copy, modify, and distribute this software and its
-** documentation for any purpose and without fee is hereby granted, provided
-** that the above copyright notice appear in all copies and that both that
-** copyright notice and this permission notice appear in supporting
-** documentation.  This software is provided "as is" without express or
-** implied warranty.
+** See COPYRIGHT file for license.
 */
 
 #include <stdio.h>
@@ -1271,7 +1249,7 @@ LIQ_NONNULL static float remap_to_palette(liq_image *const input_image, unsigned
 
     int row;
     #pragma omp parallel for if (rows*cols > 3000) \
-        schedule(static) default(none) shared(average_color) reduction(+:remapping_error)
+        schedule(static) default(none) shared(acolormap) shared(average_color) reduction(+:remapping_error)
     for(row = 0; row < rows; ++row) {
         const f_pixel *const row_pixels = liq_image_get_row_f(input_image, row);
         const f_pixel *const bg_pixels = input_image->background && acolormap[transparent_index].acolor.a < 1.f/256.f ? liq_image_get_row_f(input_image->background, row) : NULL;
