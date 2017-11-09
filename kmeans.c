@@ -74,7 +74,7 @@ LIQ_PRIVATE double kmeans_do_iteration(histogram *hist, colormap *const map, kme
 
     double total_diff=0;
     int j;
-    #pragma omp parallel for if (hist_size > 3000) \
+    #pragma omp parallel for if (hist_size > 2000) \
         schedule(static) default(none) shared(average_color,callback) reduction(+:total_diff)
     for(j=0; j < hist_size; j++) {
         float diff;
