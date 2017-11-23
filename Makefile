@@ -102,6 +102,8 @@ distclean: clean
 
 install:
 
+check:
+
 config.mk:
 ifeq ($(filter %clean %distclean, $(MAKECMDGOALS)), )
 	./configure
